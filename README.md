@@ -27,4 +27,4 @@ InSAR modules
 
 Copyright 2017 PB
 
-Licensed under the GPL3
+Licensed under the GPL v3.0
