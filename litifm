@@ -1,0 +1,49 @@
+#!/bin/bash
+
+#Reads and aligns a set of SNAP interferograms
+#P. Briole - 2017/04/03
+#Version: 1.1
+
+# Parameters:  ec, nc : NW edge for crop; co, li : columns and lines
+if [ ! $# == 7 ]; then
+  echo "Usage  : $0 area satellite track ec nc co li"
+  echo "Exemple: $0 CRL S1 80 441000 4315000 4626 2651" 
+  exit
+fi
+
+ls ifm*.tif.gz > zfiles
+for a in $(cat zfiles)
+do
+cp $a bbbb.tif.gz; gzip -d bbbb.tif.gz; b="bbbb.tif"
+
+east=`gdalinfo $b | grep Ori | cut -d" " -f 3 | cut -d"." -f 1 | sed 's/(//g'`
+north=`gdalinfo $b | grep Ori | cut -d"," -f 2 | cut -d"." -f 1 | sed 's/(//g'`
+col=`gdalinfo $b | grep 'Size is' | cut -d" " -f 3 | sed 's/,//g'i`
+lig=`gdalinfo $b | grep 'Size is' | cut -d" " -f 4`
+size=`du -m "$b" | cut -f1`
+out=$1"_"$2"_"$3${a:11:22};aa=${a%%.gz}
+nli=$((($4-east)/40))
+nco=$(((north-$5)/40))
+gdal_translate $b $out -of GTiff -ot Byte -scale -3.14 3.14 -srcwin $nli $nco $6 $7 -q
+
+cc=${out/$1/pha};cc1=${cc%%.tif}".raw"; gdal_translate $out $cc1 -of ENVI -q
+dd=${cc%%.tif}".hdr"; ff=${out%%.tif}".xml"
+
+ee=`grep info $dd | cut -d" " -f 7 | cut -d"." -f 1`
+nn=`grep info $dd | cut -d" " -f 8 | cut -d"." -f 1`
+de=$(($4-$ee)); dn=$(($5-$nn))
+
+echo $aa";"$size";"$east";"$north";"$col";"$lig";"$out";"$nli";"$nco";"$ee";"$nn";"$de";"$dn 
+
+cp input.template $ff; out1=${out/.tif/_cor.tif}; cc2=${cc1/.raw/_cor.raw}
+
+sed -i 's;IIII;'"$out"';g' $ff; sed -i 's;OOOO;'"$out1"';g' $ff
+sed -i 's;EEEE;'"$de"';g'  $ff; sed -i 's;NNNN;'"$dn"';g'  $ff
+
+otbcli_RigidTransformResample -inxml $ff
+gdal_translate $out1 $cc2 -of ENVI -q
+
+rm $b
+done
+rm zfiles
+
